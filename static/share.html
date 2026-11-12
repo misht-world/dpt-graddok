@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>ГРАДДОК</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="page share-page">
+  <div class="top">
+    <span class="brand">
+      <img class="mark" src="/static/logo.svg" alt="">
+      <span><h1>ГРА<span class="acc">ДД</span>ОК</h1><span class="tagline">файлы по ссылке</span></span>
+    </span>
+  </div>
+  <main class="card share-card" id="box"><p class="sub">Загрузка…</p></main>
+</div>
+<script>
+'use strict';
+const token = location.pathname.split('/')[2] || '';
+const box = document.getElementById('box');
+
+function el(tag, attrs = {}, children = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'text') n.textContent = v; else if (k === 'class') n.className = v; else n.setAttribute(k, v);
+  }
+  for (const c of [].concat(children)) if (c) n.append(c);
+  return n;
+}
+const p2 = (n) => String(n).padStart(2, '0');
+function fmtDate(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : iso;
+}
+function size(n) {
+  if (n == null) return '';
+  return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' МБ' : Math.max(1, Math.round(n / 1024)) + ' КБ';
+}
+const VIEW = /\.(pdf|png|jpe?g|gif|webp|txt)$/i;
+const OFFICE = /\.(docx|xlsx|xls)$/i;
+function btn(href, icon, text, extra = {}) {
+  return el('a', { class: 'btn', href, ...extra }, [el('span', { class: 'mdi ' + icon }), text]);
+}
+function fileActions(src, name) {
+  const out = [btn(src + '?dl=1', 'mdi-download', 'Скачать')];
+  if (VIEW.test(name)) out.unshift(btn(src, 'mdi-eye-outline', 'Открыть', { target: '_blank', rel: 'noopener' }));
+  else if (OFFICE.test(name)) out.unshift(btn(`/static/viewer.html?src=${encodeURIComponent(src)}&name=${encodeURIComponent(name)}`,
+    'mdi-eye-outline', 'Открыть', { target: '_blank', rel: 'noopener' }));
+  return el('span', { class: 'share-acts' }, out);
+}
+
+async function main() {
+  let res;
+  try { res = await fetch('/api/s/' + encodeURIComponent(token)); } catch (e) { box.textContent = 'Сервер недоступен.'; return; }
+  const data = await res.json().catch(() => ({}));
+  box.textContent = '';
+  if (!res.ok) {
+    box.append(el('h2', { text: data.detail || 'Ссылка не работает' }),
+      el('p', { class: 'sub', text: 'Попросите отправителя прислать новую ссылку.' }));
+    return;
+  }
+  const until = el('p', { class: 'sub', text: 'Ссылка действует до ' + fmtDate(data.expires_at) + '.' });
+  if (data.kind === 'doc') {
+    const d = data.doc;
+    document.title = d.file_name + ' — ГРАДДОК';
+    box.append(el('h2', { class: 'share-name', text: d.file_name }),
+      el('p', { class: 'sub', text: [d.project, d.org, d.decision, d.stage ? d.stage + ' этап' : '', fmtDate(d.date), size(d.size)].filter(Boolean).join(' · ') }),
+      fileActions('/s/' + token + '/doc', d.file_name), until);
+    return;
+  }
+  const r = data.release;
+  const title = r.title || r.project;
+  if (data.kind === 'rfile') {
+    const f = data.files[0];
+    const name = f.rel_path.split('/').pop();
+    document.title = name + ' — ГРАДДОК';
+    box.append(el('h2', { class: 'share-name', text: name }),
+      el('p', { class: 'sub', text: ['Выпуск ' + title, fmtDate(r.released_at), size(f.size)].filter(Boolean).join(' · ') }),
+      fileActions(`/s/${token}/file/${f.id}`, name), until);
+    return;
+  }
+  document.title = title + ' — ГРАДДОК';
+  const total = data.files.reduce((a, f) => a + (f.size || 0), 0);
+  box.append(el('h2', { class: 'share-name', text: 'Выпуск ' + title }),
+    el('p', { class: 'sub', text: [r.project, r.stage ? 'этап ' + r.stage : '', fmtDate(r.released_at),
+      data.files.length + ' файл(ов), ' + size(total)].filter(Boolean).join(' · ') }),
+    el('div', { class: 'share-acts' }, [btn(`/s/${token}/zip`, 'mdi-folder-zip-outline', 'Скачать всё архивом', { class: 'btn primary' })]),
+    until);
+  const list = el('div', { class: 'share-list' });
+  let dir = null;
+  for (const f of data.files) {
+    const parts = f.rel_path.split('/');
+    const name = parts.pop();
+    const folder = parts.join(' / ');
+    if (folder !== dir) {
+      dir = folder;
+      if (folder) list.append(el('div', { class: 'share-dir' }, [el('span', { class: 'mdi mdi-folder-outline' }), folder]));
+    }
+    list.append(el('div', { class: 'share-file' + (folder ? ' nested' : '') }, [
+      el('span', { class: 'share-fname', text: name, title: f.rel_path }),
+      el('span', { class: 'sub share-size', text: size(f.size) }),
+      fileActions(`/s/${token}/file/${f.id}`, name)]));
+  }
+  box.append(list);
+}
+main();
+</script>
+</body>
+</html>

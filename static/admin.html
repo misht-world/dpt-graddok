@@ -72,6 +72,23 @@
     </div>
 
     <div class="card">
+      <h2>Ссылки для посторонних</h2>
+      <p class="hint">
+        Кнопка «Поделиться» у письма, выпуска или файла выпуска даёт ссылку на 30 дней. Без входа по ней видно
+        только этот объект; у кого есть вход — откроется внутри программы. «Отключить» — ссылка перестаёт работать сразу.
+      </p>
+      <div class="panel" style="border-radius:8px; box-shadow:none; overflow-x:auto">
+        <table class="users-table">
+          <thead><tr>
+            <th class="plain">Что</th><th class="plain">Действует до</th><th class="plain">Открывали</th><th class="plain"></th>
+          </tr></thead>
+          <tbody id="shares"></tbody>
+        </table>
+      </div>
+      <p class="sub" id="shares-note"></p>
+    </div>
+
+    <div class="card">
       <h2>Пользователи</h2>
       <p class="hint">
         У каждого свой вход: e-mail и пароль. Пароль задаёте вы и сообщаете человеку сами — писем программа
@@ -886,6 +903,47 @@ $('tg-send').addEventListener('click', async () => {
   refreshTelegram();
 });
 refreshTelegram();
+
+// ------------------------------------------------------------- ссылки
+
+const SHARE_STATE = { active: '', expired: 'истекла', revoked: 'отключена' };
+
+function renderShares(list) {
+  const box = $('shares');
+  box.textContent = '';
+  const shown = list.filter((s) => s.state === 'active');
+  const old = list.length - shown.length;
+  $('shares-note').textContent = old ? `Истёкших и отключённых: ${old} (не показаны).` : '';
+  if (!shown.length) {
+    box.appendChild(el('tr', {}, [el('td', { colspan: '4', class: 'sub', text: 'Действующих ссылок нет.' })]));
+    return;
+  }
+  for (const s of shown) {
+    const off = el('button', { type: 'button', text: 'Отключить' });
+    off.addEventListener('click', async () => {
+      if (!confirm('Отключить ссылку? Она сразу перестанет открываться.')) return;
+      try { renderShares((await api(`/api/admin/shares/${s.token}/revoke`, { method: 'POST' })).shares); }
+      catch (err) { $('shares-note').textContent = 'Ошибка: ' + err.message; }
+    });
+    const copy = el('button', { type: 'button', class: 'icon-btn', title: 'Скопировать ссылку', 'aria-label': 'Скопировать ссылку' },
+      [el('span', { class: 'mdi mdi-content-copy' })]);
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(location.origin + s.url); $('shares-note').textContent = 'Ссылка скопирована.'; }
+      catch (e) { prompt('Ссылка:', location.origin + s.url); }
+    });
+    box.appendChild(el('tr', {}, [
+      el('td', { text: s.title }),
+      el('td', { class: 'nowrap', text: fmtDateTime(s.expires_at).slice(0, 10) }),
+      el('td', { class: 'sub', text: s.hits ? `${s.hits} раз` + (s.last_hit ? ', последний ' + fmtDateTime(s.last_hit) : '') : 'ни разу' }),
+      el('td', { class: 'user-acts' }, [copy, off]),
+    ]));
+  }
+}
+
+async function refreshShares() {
+  try { renderShares((await api('/api/admin/shares')).shares); } catch (e) { /* не критично */ }
+}
+refreshShares();
 
 refresh();
 setInterval(poll, 5000);

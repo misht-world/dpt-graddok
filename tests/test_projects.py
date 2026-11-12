@@ -31,6 +31,7 @@ def client(tmp_path, monkeypatch):
     with TestClient(app) as c:
         assert c.post("/api/login", data={"password": "a"}).status_code == 200
         c.work = tmp_path / "work"
+        c.data_dir = tmp_path / "data"
         yield c
 
 

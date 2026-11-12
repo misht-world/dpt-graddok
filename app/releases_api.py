@@ -286,3 +286,7 @@ def register_release_routes(api: FastAPI, state, require_viewer, require_admin, 
             stream_zip(entries), media_type="application/zip",
             headers={"Content-Disposition": _disposition("attachment", top + ".zip")},
         )
+
+    # share links (app/shares.py) give the same files to people without an account
+    state.release_file_response = release_file
+    state.release_zip_response = release_zip

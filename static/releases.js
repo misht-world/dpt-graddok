@@ -224,6 +224,7 @@ function renderList() {
     open.addEventListener('click', () => openRelease(r.id));
     const actions = el('div', { class: 'actions' }, [
       open, iconLink('mdi-folder-zip-outline', 'Скачать архивом', `/release/${r.id}/zip`),
+      canMark() && r.status === 'ready' ? shareButton('release', r.id) : null,
     ]);
     const title = el('div', { class: 'cell-body' }, [
       el('a', { class: 'fname rel-link', href: '#', text: projectText(r) }),
@@ -327,6 +328,7 @@ function renderRelease() {
       });
       tools.append(again);
     }
+    tools.append(shareButton('release', r.id, null, 'Поделиться'));
     const edit = el('button', { type: 'button' }, [el('span', { class: 'mdi mdi-pencil-outline' }), 'Изменить']);
     edit.addEventListener('click', () => openEditor(r));
     const del = el('button', { class: 'danger', type: 'button' }, [el('span', { class: 'mdi mdi-delete-outline' }), 'Удалить выпуск']);
@@ -383,6 +385,7 @@ function renderRelease() {
           // download first: it lines up with the folder archive button above
           iconLink('mdi-download', 'Скачать', `/release/${r.id}/file/${f.id}?dl=1`),
           viewLink(r.id, f) || el('span', { class: 'icon-btn icon-gap', title: 'Этот тип файла только скачивается' }),
+          canMark() ? shareButton('rfile', f.id, r.id) : null,
         ])]),
         el('td', { class: 'doc' }, [el('div', { class: 'tree-name', style: `padding-left:${depth * 18 + 22}px` }, [
           (() => {
@@ -477,6 +480,40 @@ function openCompare(r, others) {
 }
 
 // ------------------------------------------------------------- registration
+
+// «Поделиться»: a link for people without an account (admin only), 30 days
+async function shareDialog(kind, id, releaseId = null) {
+  const m = modal('Ссылка для посторонних');
+  m.body.append(el('p', { class: 'sub', text: 'Создаю ссылку…' }));
+  let s;
+  try {
+    s = await api('/api/admin/shares', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, id, release_id: releaseId }) });
+  } catch (err) { m.body.textContent = 'Ошибка: ' + err.message; return; }
+  const url = location.origin + s.url;
+  const input = el('input', { type: 'text', readonly: true, value: url, class: 'share-url', 'aria-label': 'Ссылка' });
+  const copy = el('button', { class: 'primary', type: 'button' }, [el('span', { class: 'mdi mdi-content-copy' }), 'Копировать']);
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(url); } catch (e) { input.select(); document.execCommand('copy'); }
+    copy.lastChild.textContent = 'Скопировано';
+  });
+  m.body.textContent = '';
+  m.body.append(
+    el('p', { class: 'hint', text: s.title }),
+    el('div', { class: 'share-row' }, [input, copy]),
+    el('p', { class: 'sub', text: `Действует до ${fmtDate(s.expires_at)}. Без входа в ГРАДДОК по ней видно только это`
+      + (kind === 'release' ? ' — весь выпуск, его файлы и архив' : '') + '; у кого есть вход, откроется внутри программы. '
+      + 'Отключить — «Панель» → «Ссылки для посторонних».' }));
+  input.focus();
+  input.select();
+}
+
+function shareButton(kind, id, releaseId = null, text = '') {
+  const b = el('button', { type: 'button', class: text ? '' : 'icon-btn', title: 'Поделиться ссылкой', 'aria-label': 'Поделиться ссылкой' },
+    [el('span', { class: 'mdi mdi-share-variant-outline' }), text || null]);
+  b.addEventListener('click', (e) => { e.stopPropagation(); shareDialog(kind, id, releaseId); });
+  return b;
+}
 
 function modal(title) {
   const back = el('div', { class: 'modal-back' });

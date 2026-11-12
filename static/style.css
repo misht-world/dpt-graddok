@@ -990,3 +990,22 @@ button.linkish:hover { background: none; color: var(--fg); }
 .g-bar .g-days.link { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .g-bar .g-days.link:hover { background: rgba(0, 0, 0, .25); border-radius: 2px; }
 .g-rel-sw { display: inline-block; width: 9px; height: 9px; border: 1.5px solid var(--fg); background: #fff; margin-right: 6px; vertical-align: middle; }
+
+/* share page for people without an account */
+.share-page main.share-card { max-width: 900px; margin: 18px auto; padding: 22px 24px; }
+.share-name { margin: 0 0 6px; font-size: 20px; word-break: break-word; }
+.share-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
+.share-acts .btn { display: inline-flex; align-items: center; gap: 4px; }
+.share-list { margin-top: 16px; border-top: 1px solid var(--line); }
+.share-dir { padding: 10px 0 4px; font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.share-file { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.share-file.nested { padding-left: 22px; }
+.share-fname { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.share-file .share-acts { margin: 0; }
+.share-file .share-acts .btn { height: 28px; padding: 0 9px; font-size: 12px; }
+@media (max-width: 600px) { .share-file { flex-wrap: wrap; } .share-page main.share-card { padding: 16px; } }
+
+/* «Поделиться» */
+.share-row { display: flex; gap: 6px; margin: 8px 0; }
+.share-row .share-url { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
+#releases tr.flash td { background: #fff4c2; transition: background 2s; }

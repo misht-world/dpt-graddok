@@ -556,6 +556,7 @@ function renderTable(docs) {
               class: 'btn icon-btn', title: 'Скачать',
               href: '/download/' + d.id,
             }, [el('span', { class: 'mdi mdi-download' }), el('span', { class: 'lbl', text: 'Скачать' })]),
+            canMark() && window.shareButton ? shareButton('doc', d.id) : null,
           ]),
     ]);
     actCell.classList.add('act');
@@ -1160,6 +1161,39 @@ function bind() {
 bind();
 setupColumnFilters();
 setupResizers();
+// a share link opened by someone with an account lands here: «/#doc=12», «/#release=5&file=40»
+async function followLink() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const doc = Number(h.get('doc')), release = Number(h.get('release')), file = Number(h.get('file'));
+  if (!doc && !release) return false;
+  history.replaceState(null, '', location.pathname);
+  if (release) {
+    await openRelease(release);
+    state.showView('releases');
+    if (file && rel.current) {
+      const f = (rel.current.files || []).find((x) => x.id === file);
+      if (f) {
+        // open the folders on the way, then show the file
+        for (const row of document.querySelectorAll('#releases tr.dir.closed')) {
+          if (f.rel_path.startsWith(row.dataset.path + '/')) row.click();
+        }
+        const row = [...document.querySelectorAll('#releases tr[data-path]')].find((x) => x.dataset.path === f.rel_path && !x.classList.contains('dir'));
+        if (row) { row.classList.add('flash'); row.scrollIntoView({ block: 'center' }); }
+      }
+    }
+    return true;
+  }
+  const d = state.docs.find((x) => x.id === doc);
+  state.lettersMode = 'table';
+  if (d) {
+    state.filters = emptyFilters();
+    state.filters.query = d.file_name;
+    $('search').value = d.file_name;
+  }
+  state.showView('table');
+  return true;
+}
+
 load()
-  .then(() => state.showView(state.lettersMode))
+  .then(async () => { if (!(await followLink())) state.showView(state.lettersMode); })
   .catch(() => { $('pub-info').textContent = 'Ошибка загрузки данных'; });

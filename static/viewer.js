@@ -24,7 +24,7 @@ function fail(text) { msg.hidden = false; msg.textContent = text; }
 
 async function main() {
   // only files of this site: the page never fetches anything else
-  if (!/^\/release\/\d+\/file\/\d+$/.test(src)) { fail('Неверная ссылка на файл.'); return; }
+  if (!/^\/(release\/\d+|s\/[A-Za-z0-9_-]{16,})\/file\/\d+$/.test(src)) { fail('Неверная ссылка на файл.'); return; }
   document.title = name + ' — ГРАДДОК';
   document.getElementById('name').textContent = name;
   document.getElementById('dl').href = src + '?dl=1';

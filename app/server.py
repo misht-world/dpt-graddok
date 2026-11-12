@@ -35,6 +35,7 @@ from .users import UserError, Users
 from .notify import TelegramError, TelegramNotifier
 from .watcher import ChangeWatcher
 from .releases_api import register_release_routes
+from .shares import register_share_routes
 from .uploads import decorate as decorate_uploads, is_upload, pc_path, register_upload_routes
 
 log = logging.getLogger("server")
@@ -693,6 +694,8 @@ def create_app(config: Config | None = None) -> FastAPI:
             headers={"Content-Disposition": header, "Cache-Control": "private, max-age=60"},
         )
 
+    state.send_doc = send   # share links (app/shares.py)
+
     @api.get("/file/{doc_id}")
     def view_file(doc_id: int, role: str = Depends(require_viewer)):
         return send(doc_id, "inline")
@@ -1243,6 +1246,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     register_release_routes(api, state, require_viewer, require_admin, browse_roots)
     register_upload_routes(api, state, require_viewer, require_admin)
+    register_share_routes(api, state, require_admin, COOKIE_NAME, STATIC_DIR, PAGE_HEADERS)
 
     api.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return api
