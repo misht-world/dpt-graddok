@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex, nofollow">
+<title>Панель управления — ГРАДДОК</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="page">
+<div class="top">
+  <a class="brand" href="/" title="ГРАДДОК">
+    <img class="mark" src="/static/logo.svg" alt="">
+    <span><h1>ГРА<span class="acc">ДД</span>ОК</h1><span class="tagline">панель управления</span></span>
+  </a>
+  <div class="btns">
+    <a class="btn" href="/"><span class="mdi mdi-table"></span>К каталогу</a>
+    <button id="logout"><span class="mdi mdi-logout"></span>Выйти</button>
+  </div>
+</div>
+
+<main>
+  <div class="admin-grid">
+
+    <div class="card">
+      <h2>Состояние</h2>
+      <p class="hint">
+        «Актуализировать» перечитывает папки проектов и обновляет каталог.
+      </p>
+      <div class="status-line" id="status">Проверяю…</div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap">
+        <button class="primary" id="publish">Актуализировать</button>
+        <button id="recheck">Проверить сейчас</button>
+        <button id="show-changes">Что изменилось?</button>
+      </div>
+      <div class="pending-list" id="pending-list" hidden></div>
+      <p class="sub" id="publish-result" style="margin:10px 0 0"></p>
+    </div>
+
+    <div class="card">
+      <h2>Резервная копия</h2>
+      <p class="hint">
+        Раз в сутки (после 02:00) сервер копирует базы и все файлы в папку на ПК
+        (общая папка <code>graddok-copy</code>). Если ПК выключен — повторяет каждые полчаса, пока не получится.
+      </p>
+      <div class="status-line" id="backup-status">Проверяю…</div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap">
+        <button id="backup-now">Сделать копию сейчас</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Телеграм</h2>
+      <p class="hint">
+        После «Актуализировать» бот пишет в чат, какие письма появились, обновились или пропали,
+        со ссылкой на ГРАДДОК. Удалённые вами из каталога документы в сообщения не попадают.
+        Не получилось отправить (нет интернета) — сообщение уйдёт со следующим «Актуализировать» или по кнопке.
+      </p>
+      <div class="status-line" id="tg-status">Проверяю…</div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap">
+        <button id="tg-test">Пробное сообщение</button>
+        <button id="tg-send" hidden>Отправить ожидающее</button>
+      </div>
+      <p class="sub" id="tg-note" style="margin:10px 0 0"></p>
+    </div>
+
+    <div class="card">
+      <h2>Пользователи</h2>
+      <p class="hint">
+        У каждого свой вход: e-mail и пароль. Пароль задаёте вы и сообщаете человеку сами — писем программа
+        не шлёт. «Просмотр» — всё видно и можно скачивать, менять нельзя; «Администратор» — как вы.
+        Отключённый человек сразу теряет доступ, смена пароля завершает его открытые сеансы.
+        Ваш пароль владельца работает как прежде (e-mail оставьте пустым).
+      </p>
+      <div class="panel" style="border-radius:8px; box-shadow:none; overflow-x:auto">
+        <table class="users-table">
+          <thead><tr>
+            <th class="plain">Имя</th><th class="plain">E-mail</th><th class="plain">Роль</th>
+            <th class="plain">Последний вход</th><th class="plain"></th>
+          </tr></thead>
+          <tbody id="users"></tbody>
+        </table>
+      </div>
+      <div class="po-form">
+        <input id="nu-name" type="text" placeholder="Имя: Иван Петров" autocomplete="off">
+        <input id="nu-login" type="email" placeholder="E-mail" autocomplete="off" autocapitalize="off">
+        <select id="nu-role" aria-label="Роль"><option value="viewer">Просмотр</option><option value="admin">Администратор</option></select>
+        <input id="nu-password" type="text" placeholder="Пароль (от 8 знаков)" autocomplete="off" spellcheck="false">
+        <button id="nu-gen" type="button" title="Придумать пароль"><span class="mdi mdi-dice-multiple-outline"></span>Придумать</button>
+        <button class="primary" id="nu-add">Добавить</button>
+      </div>
+      <p class="sub" id="users-note"></p>
+    </div>
+
+    <div class="card">
+      <h2>Папки с проектами</h2>
+      <p class="hint">
+        Укажите папки, из которых собираются согласования. Это может быть как папка
+        с проектами внутри, так и сама папка проекта. Выключенная папка остаётся
+        в списке, но в каталог не попадает.
+      </p>
+
+      <div class="source-list" id="sources"></div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <input type="text" id="new-path" placeholder="D:\Проекты  — или нажмите «Обзор»"
+               style="flex:1 1 280px" autocomplete="off">
+        <button class="primary" id="add-source">Добавить</button>
+        <button id="toggle-browser">Обзор…</button>
+      </div>
+      <p class="error" id="source-error"></p>
+
+      <div class="browser" id="browser" hidden>
+        <div class="browser-head">
+          <button class="browse-up" id="browse-up" type="button"><span class="mdi mdi-arrow-up"></span>Вверх</button>
+          <span id="browse-current">Выберите диск</span>
+        </div>
+        <div class="browser-list" id="browse-list"></div>
+        <div class="browser-foot">
+          <button class="primary" id="browse-pick" disabled>Выбрать эту папку</button>
+          <span class="sub" id="browse-hint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Проекты</h2>
+      <p class="hint">
+        ДПТ и ППТЛ ГРАДДОК собирает сам из папок. АГПТ, Концепцию и просто «Проект» ведёте вручную:
+        письма загружаете кнопкой «Загрузить», выпуски регистрируете по папке. Папка проекта нужна,
+        чтобы с неё начинался обзор и чтобы подсказать, куда сохранить загруженное письмо; на поиск согласований
+        она не влияет — их ищет раздел «Папки с проектами».
+        Проект в архиве не показывается в списках, «Сроках» и матрице; его данные целы.
+      </p>
+      <div class="source-list" id="projects"></div>
+      <div class="po-form">
+        <select id="np-type" aria-label="Вид"></select>
+        <input id="np-name" type="text" placeholder="Название, например: Далта" autocomplete="off">
+        <input id="np-path" type="text" placeholder="Папка на ПК (необязательно) — «Обзор»" autocomplete="off">
+        <button id="np-browse">Обзор…</button>
+        <button class="primary" id="np-add">Добавить проект</button>
+      </div>
+      <p class="sub" id="np-note"></p>
+    </div>
+
+    <div class="card">
+      <h2>Комитеты по проектам</h2>
+      <p class="hint">
+        Галочка — организация нужна проекту (по ТЗ и сверх него). Проект без своего списка берёт стандартный
+        набор (серые галочки); первый же клик делает список своим. Срок ответа — дней от отправки до плановой
+        даты; пусто — без срока, «просрочено» не бывает. Сводная матрица показывает столбцами только тех, кто
+        нужен или уже прислал документ.
+      </p>
+      <div class="po-scroll"><table class="po-table" id="po-table"></table></div>
+      <details class="po-add">
+        <summary>Добавить организацию (РЖД, Ленводхоз, соседи…)</summary>
+        <div class="po-form">
+          <input id="po-code" type="text" placeholder="Сокращение: РЖД" maxlength="30">
+          <input id="po-name" type="text" placeholder="Полное название">
+          <input id="po-aliases" type="text" placeholder="Другие написания через запятую">
+          <button class="primary" id="po-add">Добавить</button>
+        </div>
+        <p class="sub">Появится в справочнике всех проектов и будет распознаваться в именах файлов
+          («Согласование РЖД.pdf»). Отмечена будет только у выбранного проекта.</p>
+      </details>
+      <p class="sub" id="po-note" style="margin:10px 0 0"></p>
+    </div>
+
+    <div class="card" id="hidden-card" hidden>
+      <h2>Удалённые документы</h2>
+      <p class="hint">
+        Лишнее, удалённое кнопкой «Удалить» в таблице: файлы, попавшие в
+        папку согласований по ошибке. Сами PDF на диске целы, но в каталог,
+        в сводную матрицу и в онлайн-версию они больше не попадают, и
+        согласующим о таком удалении ничего не уходит. Запись держится
+        и после пересборки индекса — иначе удалённое возвращалось бы при
+        каждом обходе папок.
+      </p>
+      <div class="committee-list" id="hidden-list"></div>
+      <p class="sub" id="hidden-note" style="margin:10px 0 0"></p>
+    </div>
+
+    <div class="card">
+      <h2>Журнал публикаций</h2>
+      <div class="panel" style="border-radius:8px; box-shadow:none">
+        <table>
+          <thead>
+            <tr>
+              <th class="plain">#</th>
+              <th class="plain">Дата</th>
+              <th class="plain">Всего</th>
+              <th class="plain">Новых</th>
+              <th class="plain">Изменено</th>
+              <th class="plain">Перемещено</th>
+              <th class="plain">Удалено</th>
+              <th class="plain">Комментарий</th>
+            </tr>
+          </thead>
+          <tbody id="log"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Служебное</h2>
+      <dl class="kv">
+        <dt>Файл настроек</dt><dd id="config">—</dd>
+        <dt>Автоопределение</dt><dd id="autodetect">—</dd>
+        <dt>Отслеживается папок</dt><dd id="watching">—</dd>
+      </dl>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+let browseCurrent = '';
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const p2 = (n) => String(n).padStart(2, '0');
+  if (!isNaN(d)) return `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  return isNaN(d) ? iso : d.toLocaleString('ru-RU', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else node.setAttribute(k, v === true ? '' : v);
+  }
+  for (const child of [].concat(children)) {
+    if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+
+async function api(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) { location.href = '/login'; throw new Error('нет входа'); }
+  if (res.status === 403) { location.href = '/'; throw new Error('нет прав'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Ошибка запроса');
+  return data;
+}
+
+// ------------------------------------------------------------- папки
+
+function renderSources(sources) {
+  const box = $('sources');
+  box.textContent = '';
+
+  if (!sources.length) {
+    box.appendChild(el('div', { class: 'empty-state', style: 'padding:22px' }, [
+      el('strong', { text: 'Папки не указаны' }),
+      'Добавьте хотя бы одну папку — каталог пока пуст.',
+    ]));
+    return;
+  }
+
+  for (const s of sources) {
+    const classes = ['source'];
+    if (!s.enabled) classes.push('off');
+    if (!s.exists) classes.push('missing');
+
+    const meta = !s.exists
+      ? 'Папка не найдена на диске'
+      : (s.enabled
+          ? `проектов: ${s.projects} · документов: ${s.docs}`
+          : 'выключена — в каталог не попадает');
+
+    const toggle = el('input', { type: 'checkbox', checked: s.enabled ? true : null });
+    toggle.addEventListener('change', async () => {
+      await api('/api/admin/sources/' + s.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: toggle.checked }),
+      });
+      refresh();
+    });
+
+    const remove = el('button', { class: 'danger', type: 'button', text: 'Убрать' });
+    remove.addEventListener('click', async () => {
+      if (!confirm(`Убрать папку из каталога?\n\n${s.path}\n\nЕё документы пропадут из таблицы и матрицы, но останутся в базе: ответы в «Сроках», пометки и копии сохранятся. Если добавить папку снова — всё вернётся. Файлы на ПК не трогаются.`)) return;
+      await api('/api/admin/sources/' + s.id, { method: 'DELETE' });
+      refresh();
+    });
+
+    box.appendChild(el('div', { class: classes.join(' ') }, [
+      el('label', { class: 'switch', title: 'Участвует в сборе' }, [toggle]),
+      el('div', { class: 'grow' }, [
+        el('div', { class: 'path', text: s.path }),
+        el('div', { class: 'meta', text: meta }),
+      ]),
+      remove,
+    ]));
+  }
+}
+
+async function addSource(path) {
+  $('source-error').textContent = '';
+  if (!path.trim()) { $('source-error').textContent = 'Укажите путь к папке'; return; }
+  try {
+    const data = await api('/api/admin/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    $('new-path').value = '';
+    $('browser').hidden = true;
+    const found = data.found_with_approvals;
+    $('publish-result').textContent = found
+      ? `Папка добавлена. Найдено проектов с согласованиями: ${found}`
+        + (data.sample.length ? ' (' + data.sample.join(', ') + (found > data.sample.length ? ', …' : '') + ')' : '')
+        + '. Нажмите «Актуализировать», чтобы они появились в каталоге.'
+      : 'Папка добавлена, но проектов с папкой «08_Согласования» внутри не найдено. Проверьте путь.';
+    refresh();
+  } catch (err) {
+    $('source-error').textContent = err.message;
+  }
+}
+
+// ------------------------------------------------------------- обзор папок
+
+async function browse(path) {
+  const data = await api('/api/admin/browse?path=' + encodeURIComponent(path || ''));
+  browseCurrent = data.current;
+  $('browse-current').textContent = data.current || 'Выберите диск';
+  $('browse-up').disabled = !data.current;
+  $('browse-pick').disabled = !data.current;
+  $('browse-hint').textContent = !data.current ? '' : (browseHint ? browseHint
+    : (data.looks_like_project ? 'Внутри есть блок согласований — это сама папка проекта.'
+      : 'Обычно выбирают папку, внутри которой лежат папки проектов.'));
+
+  const list = $('browse-list');
+  list.textContent = '';
+  if (!data.dirs.length) {
+    list.appendChild(el('div', { class: 'sub', style: 'padding:12px', text: 'Вложенных папок нет' }));
+  }
+  for (const dir of data.dirs) {
+    const item = el('button', { class: 'browser-item', text: '📁  ' + dir.name });
+    item.addEventListener('click', () => browse(dir.path));
+    list.appendChild(item);
+  }
+  $('browse-up').onclick = () => browse(data.parent || '');
+}
+
+// ------------------------------------------------------------- состояние
+
+function renderStatus(watcher, publication, sources) {
+  const box = $('status');
+  const btn = $('publish');
+  box.className = 'status-line';
+  if (!watcher) { box.textContent = 'Нет данных'; return; }
+
+  const list = sources || [];
+  const active = list.filter((s) => s.enabled && s.exists).length;
+
+  if (!list.length) {
+    box.textContent = 'Не указано ни одной папки с проектами — добавьте её ниже.';
+    btn.classList.remove('attention');
+    btn.disabled = true;
+  } else if (!active) {
+    box.classList.add('pending');
+    box.textContent = list.some((s) => !s.exists)
+      ? 'Папки не найдены на диске. Проверьте подключение дисков, иначе после «Актуализировать» каталог опустеет.'
+      : 'Все папки выключены — после «Актуализировать» каталог станет пустым.';
+    btn.classList.remove('attention');
+    btn.disabled = false;
+  } else if (watcher.pending) {
+    box.classList.add('pending');
+    box.textContent = 'Обнаружены изменения'
+      + (watcher.detected_at ? ' — с ' + fmtDateTime(watcher.detected_at) : '')
+      + (watcher.last_event ? ' (последний файл: ' + watcher.last_event + ')' : '')
+      + '. Нажмите «Актуализировать».';
+    btn.classList.add('attention');
+    btn.disabled = false;
+  } else {
+    box.classList.add('clean');
+    box.textContent = 'Изменений нет. Опубликовано: '
+      + (publication ? fmtDateTime(publication.created_at) + ' · документов ' + publication.files_total : '—');
+    btn.classList.remove('attention');
+    btn.disabled = false;
+  }
+
+  $('autodetect').textContent = watcher.auto_detect
+    ? 'включено (слежение за файловой системой)'
+    : 'выключено — пользуйтесь кнопкой «Проверить сейчас»';
+  $('watching').textContent = (watcher.watching || []).length || '0';
+}
+
+function renderLog(publications) {
+  const tbody = $('log');
+  tbody.textContent = '';
+  if (!publications.length) {
+    tbody.appendChild(el('tr', {}, [
+      el('td', { colspan: '8', class: 'sub', style: 'padding:14px', text: 'Публикаций ещё не было' }),
+    ]));
+    return;
+  }
+  for (const p of publications) {
+    tbody.appendChild(el('tr', {}, [p.id, fmtDateTime(p.created_at), p.files_total, p.files_new,
+      p.files_changed, p.files_moved, p.files_removed, p.note || ''].map(
+      (v) => el('td', { text: String(v) }))));
+  }
+}
+
+async function refresh() {
+  const data = await api('/api/admin/overview');
+  $('config').textContent = data.config;
+  renderSources(data.sources);
+  renderLog(data.publications);
+  renderStatus(data.watcher, data.publications[0], data.sources);
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/api/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    const overview = await (await fetch('/api/admin/overview')).json();
+    renderStatus(data.watcher, data.publication, overview.sources);
+  } catch (e) { /* сервер перезапускается */ }
+}
+
+// ------------------------------------------------------------- события
+
+$('publish').addEventListener('click', async () => {
+  const btn = $('publish');
+  btn.disabled = true;
+  $('publish-result').textContent = 'Сканирую папки…';
+  try {
+    const data = await api('/api/admin/publish', { method: 'POST' });
+    const parts = [];
+    if (data.reindexed) {
+      parts.push(`Каталог обновлён: всего ${data.files_total}, новых ${data.files_new},`
+        + ` изменено ${data.files_changed}, удалено ${data.files_removed}.`);
+    } else {
+      parts.push('На диске ничего не менялось — каталог оставлен как был.');
+    }
+    $('publish-result').textContent = parts.join(' ');
+  } catch (err) {
+    $('publish-result').textContent = 'Ошибка: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    refresh();
+  }
+});
+
+const CHANGE_TEXT = {
+  new: ['Новый', 'появится в каталоге'],
+  back: ['Вернулся', 'был удалён с ПК, снова на месте'],
+  changed: ['Пересохранён', 'другие размер или время; если содержимое то же — останется как был'],
+  gone: ['Пропал с ПК', 'уйдёт из каталога; копия на сервере и отправки сохранятся'],
+};
+
+$('show-changes').addEventListener('click', async () => {
+  const box = $('pending-list');
+  if (!box.hidden) { box.hidden = true; return; }
+  const btn = $('show-changes');
+  btn.disabled = true;
+  box.hidden = false;
+  box.textContent = 'Сравниваю папки с каталогом…';
+  try {
+    const data = await api('/api/admin/pending-changes');
+    box.textContent = '';
+    if (data.unreachable.length) {
+      box.append(el('p', { class: 'sub', text: 'Папки ПК недоступны (ПК выключен?): ' + data.unreachable.join('; ') }));
+      return;
+    }
+    if (!data.items.length) {
+      box.append(el('p', { class: 'sub', text: 'Отличий от каталога нет. «Актуализировать» ничего не поменяет.' }));
+      return;
+    }
+    const counts = {};
+    for (const it of data.items) counts[it.kind] = (counts[it.kind] || 0) + 1;
+    box.append(el('p', { class: 'sub', text: 'Ничего на ПК не меняется — это только сравнение. ' +
+      Object.entries(counts).map(([k, n]) => CHANGE_TEXT[k][0].toLowerCase() + ': ' + n).join(' · ') }));
+    const table = el('table', { class: 'pending-table' });
+    let last = null;
+    for (const it of data.items) {
+      if (it.kind !== last) {
+        table.append(el('tr', { class: 'pending-sec' }, [el('td', { colspan: '2' }, [
+          el('b', { text: CHANGE_TEXT[it.kind][0] }), el('span', { class: 'sub', text: ' — ' + CHANGE_TEXT[it.kind][1] })])]));
+        last = it.kind;
+      }
+      table.append(el('tr', {}, [
+        el('td', { class: 'pending-proj', text: it.project }),
+        el('td', { class: 'pending-path', text: it.path + (it.hidden ? '  (удалён из каталога вами — так и останется)' : '') }),
+      ]));
+    }
+    box.append(table);
+  } catch (err) {
+    box.textContent = 'Ошибка: ' + err.message;
+  } finally { btn.disabled = false; }
+});
+
+$('recheck').addEventListener('click', async () => {
+  const btn = $('recheck');
+  btn.disabled = true;
+  try { await api('/api/admin/recheck', { method: 'POST' }); await refresh(); }
+  finally { btn.disabled = false; }
+});
+
+$('add-source').addEventListener('click', () => addSource($('new-path').value));
+$('new-path').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addSource($('new-path').value);
+});
+
+// The folder browser is one; it moves to the card that asked for it.
+let browsePick = (path) => addSource(path);
+let browseHint = '';
+
+function openBrowser(anchor, onPick, opts = {}) {
+  const box = $('browser');
+  const same = box.previousElementSibling === anchor && !box.hidden;
+  anchor.after(box);
+  browsePick = onPick;
+  browseHint = opts.hint || '';
+  box.hidden = same;
+  if (!box.hidden) browse(opts.start || '').catch(() => browse(''));
+}
+
+$('toggle-browser').addEventListener('click', () =>
+  openBrowser($('toggle-browser').parentElement, (path) => addSource(path)));
+
+$('browse-pick').addEventListener('click', () => browsePick(browseCurrent));
+
+$('logout').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/login';
+});
+
+
+// ------------------------------------------------------------------- проекты
+
+const pj = { data: null };
+
+function renderProjects() {
+  const box = $('projects');
+  box.textContent = '';
+  const types = $('np-type');
+  if (!types.children.length) {
+    for (const t of pj.data.types.filter((x) => x.manual)) types.appendChild(el('option', { value: t.code, text: t.code === 'Проект' ? 'Проект (простой)' : t.code }));
+  }
+  if (!pj.data.projects.length) box.appendChild(el('div', { class: 'sub', text: 'Проектов пока нет.' }));
+  for (const p of pj.data.projects) {
+    const title = [p.project_type, p.project_name].filter(Boolean).join(' · ');
+    const kind = p.manual ? 'вручную' : (p.scanned ? 'из папок' : 'по выпускам и отправкам');
+    const folderBtn = el('button', { type: 'button', text: p.pc_path ? 'Сменить папку' : 'Указать папку',
+      title: 'Папка проекта на ПК: с неё начинается обзор при регистрации выпуска, туда предлагается сохранить загруженное письмо. На поиск согласований не влияет.' });
+    folderBtn.addEventListener('click', () => openBrowser(row, async (path) => {
+      $('browser').hidden = true;
+      await saveProject(p.folder, { pc_path: path });
+    }, { start: p.pc_path, hint: 'Выберите саму папку проекта (где лежат его выпуски и согласования).' }));
+    const clearBtn = p.pc_path ? el('button', { type: 'button', class: 'icon-btn', title: 'Убрать папку проекта', 'aria-label': 'Убрать папку проекта' },
+      [el('span', { class: 'mdi mdi-close' })]) : null;
+    if (clearBtn) clearBtn.addEventListener('click', () => saveProject(p.folder, { pc_path: '' }));
+    const arch = el('button', { type: 'button', text: p.archived ? 'Вернуть из архива' : 'В архив' });
+    arch.addEventListener('click', () => saveProject(p.folder, { archived: !p.archived }));
+    const row = el('div', { class: 'source' + (p.archived ? ' off' : '') }, [
+      el('div', { class: 'grow' }, [
+        el('div', {}, [el('b', { text: title }), el('span', { class: 'sub', text: '  ' + kind + (p.archived ? ' · в архиве' : '') })]),
+        el('div', { class: 'meta', text: p.pc_path_shown || (p.manual ? 'папка не указана' : '') }),
+      ]),
+      folderBtn, clearBtn, arch,
+    ]);
+    box.appendChild(row);
+  }
+}
+
+async function saveProject(folder, change) {
+  try {
+    pj.data.projects = (await api('/api/admin/projects/' + encodeURIComponent(folder), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) })).projects;
+    $('np-note').textContent = 'Сохранено.';
+    renderProjects();
+    refreshProjectOrgs();
+  } catch (err) { $('np-note').textContent = 'Ошибка: ' + err.message; }
+}
+
+async function refreshProjects() {
+  try { pj.data = await api('/api/admin/projects'); renderProjects(); } catch (e) { /* не критично */ }
+}
+
+$('np-browse').addEventListener('click', () => openBrowser($('np-browse').parentElement, (path) => {
+  $('np-path').value = path;
+  $('browser').hidden = true;
+}));
+$('np-add').addEventListener('click', async () => {
+  const name = $('np-name').value.trim();
+  if (!name) { $('np-note').textContent = 'Укажите название'; return; }
+  try {
+    pj.data.projects = (await api('/api/admin/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_type: $('np-type').value, project_name: name, pc_path: $('np-path').value.trim() }) })).projects;
+  } catch (err) { $('np-note').textContent = 'Ошибка: ' + err.message; return; }
+  $('np-name').value = ''; $('np-path').value = '';
+  $('np-note').textContent = 'Проект добавлен. Нужна ему по умолчанию только организация «Заказчик» — поменять можно ниже, в «Комитетах по проектам».';
+  renderProjects();
+  refreshProjectOrgs();
+});
+
+refreshProjects();
+
+
+// ----------------------------------------------------- комитеты по проектам
+
+const po = { data: null };
+
+function renderProjectOrgs() {
+  const projects = po.data.projects.filter((x) => !x.archived);
+  const table = $('po-table');
+  table.textContent = '';
+  if (!projects.length) { table.appendChild(el('tr', {}, [el('td', { class: 'sub', text: 'Проектов пока нет.' })])); return; }
+  const sets = projects.map((p) => new Set(p.required || po.data.default_orgs));
+  const head = el('tr', {}, [el('th', { class: 'po-org', text: 'Организация' })]);
+  projects.forEach((p) => {
+    const reset = p.required ? el('button', { class: 'linkish', type: 'button', text: 'станд.', title: 'Вернуть стандартный набор' }) : null;
+    if (reset) reset.addEventListener('click', () => saveProjectOrgs(p.folder, null));
+    head.appendChild(el('th', { class: 'po-proj', title: p.folder }, [
+      el('div', { class: 'po-pname', text: [p.project_type, p.project_name].filter(Boolean).join(' ') }),
+      el('div', { class: 'sub', text: p.required ? 'свой список' : 'стандартный' }), reset]));
+  });
+  head.appendChild(el('th', { class: 'po-term', text: 'Срок, дн.' }));
+  table.appendChild(el('thead', {}, [head]));
+  const body = el('tbody');
+  const section = (title) => body.appendChild(el('tr', { class: 'po-sec' }, [el('td', { colspan: String(projects.length + 2), text: title })]));
+  const rowFor = (c) => {
+    const tr = el('tr', {}, [el('td', { class: 'po-org', title: c.name }, [el('b', { text: c.code }), c.final ? el('span', { class: 'sub', text: ' ★' }) : null])]);
+    projects.forEach((p, i) => {
+      const box = el('input', { type: 'checkbox', title: `${c.code} — ${p.folder}` });
+      box.checked = sets[i].has(c.code);
+      const td = el('td', { class: 'po-cell' + (p.required ? '' : ' std') + (p.used.includes(c.code) ? ' used' : '') }, [box]);
+      if (p.used.includes(c.code)) td.title = 'Есть документы или отправки';
+      box.addEventListener('change', () => {
+        const next = new Set(sets[i]);
+        if (box.checked) next.add(c.code); else next.delete(c.code);
+        saveProjectOrgs(p.folder, [...next]);
+      });
+      tr.appendChild(td);
+    });
+    const term = el('input', { type: 'number', min: '0', max: '365', value: c.term == null ? '' : String(c.term), placeholder: '—', title: 'Пусто — без срока' });
+    term.addEventListener('change', async () => {
+      try {
+        po.data.committees = (await api('/api/admin/committees/' + encodeURIComponent(c.code), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ term_days: term.value === '' ? 0 : Number(term.value) }) })).committees;
+        $('po-note').textContent = `Срок ${c.code}: ` + (term.value === '' || term.value === '0' ? 'без срока' : term.value + ' дн.') + '. Для новых отправок.';
+      } catch (err) { $('po-note').textContent = 'Ошибка: ' + err.message; }
+    });
+    tr.appendChild(el('td', { class: 'po-term' }, [term]));
+    body.appendChild(tr);
+  };
+  section('Комитеты');
+  po.data.committees.filter((c) => !c.custom).forEach(rowFor);
+  section('Свои организации');
+  po.data.committees.filter((c) => c.custom).forEach(rowFor);
+  table.appendChild(body);
+}
+
+async function saveProjectOrgs(folder, codes) {
+  try {
+    const data = await api('/api/admin/project-orgs/' + encodeURIComponent(folder), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codes }),
+    });
+    po.data.projects = data.projects;
+    $('po-note').textContent = 'Сохранено.';
+  } catch (err) { $('po-note').textContent = 'Ошибка: ' + err.message; }
+  renderProjectOrgs();
+}
+
+async function refreshProjectOrgs() {
+  try { po.data = await api('/api/admin/project-orgs'); renderProjectOrgs(); } catch (e) { /* не критично */ }
+}
+
+$('po-add').addEventListener('click', async () => {
+  const code = $('po-code').value.trim();
+  if (!code) { $('po-note').textContent = 'Укажите сокращение'; return; }
+  try {
+    await api('/api/admin/committees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name: $('po-name').value, aliases: $('po-aliases').value }) });
+  } catch (err) { $('po-note').textContent = 'Ошибка: ' + err.message; return; }
+  for (const id of ['po-code', 'po-name', 'po-aliases']) $(id).value = '';
+  await refreshProjectOrgs();
+  $('po-note').textContent = `Добавлено: ${code}. Отметьте галочкой у нужных проектов. Документы с «${code}» в имени распознаются после «Актуализировать».`;
+});
+
+refreshProjectOrgs();
+
+
+function renderHidden(rows) {
+  const card = $('hidden-card');
+  const box = $('hidden-list');
+  card.hidden = !rows.length;
+  box.textContent = '';
+  for (const r of rows) {
+    const row = el('div', { class: 'committee' });
+    const title = (r.project_type ? r.project_type + ' · ' : '') + (r.project_name || '')
+      + (r.stage ? ', ' + r.stage + ' этап' : '');
+    const back = el('button', { type: 'button', text: 'Вернуть в каталог' });
+    back.addEventListener('click', async () => {
+      back.disabled = true;
+      try {
+        await api('/api/admin/documents', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [r.id], hidden: false }),
+        });
+        $('hidden-note').textContent = 'Возвращено в каталог: ' + r.file_name;
+        refreshHidden();
+      } catch (err) {
+        $('hidden-note').textContent = 'Ошибка: ' + err.message;
+        back.disabled = false;
+      }
+    });
+    row.append(
+      el('div', { class: 'grow' }, [
+        el('div', { text: r.file_name }),
+        el('div', { class: 'meta', text: title
+          + (r.decision_label ? ' · ' + r.decision_label : '')
+          + (r.org_code ? ' · ' + r.org_code : '') }),
+      ]),
+      back,
+    );
+    box.appendChild(row);
+  }
+}
+
+async function refreshHidden() {
+  try {
+    renderHidden((await api('/api/admin/documents/hidden')).documents);
+  } catch (e) { /* не критично */ }
+}
+
+refreshHidden();
+
+
+
+// ------------------------------------------------------------- резервная копия
+
+async function refreshBackup() {
+  let b;
+  try { b = await api('/api/admin/backup'); } catch (e) { $('backup-status').textContent = 'Ошибка: ' + e.message; return; }
+  const box = $('backup-status');
+  box.textContent = '';
+  box.classList.toggle('warn', !!b.stale);
+  if (!b.target) { box.textContent = 'Папка для копии не настроена (BACKUP_DIR).'; return; }
+  if (b.running) { box.textContent = 'Копирую…'; setTimeout(refreshBackup, 3000); return; }
+  box.append(b.last_ok ? 'Последняя копия: ' + fmtDateTime(b.last_ok) : 'Копий ещё не было.');
+  if (b.last_summary && b.last_ok) box.append(el('div', { class: 'sub', text: b.last_summary }));
+  if (b.last_error) box.append(el('div', { class: 'sub', text: 'Последняя попытка ' + fmtDateTime(b.last_try) + ': ' + b.last_error }));
+  if (b.stale) box.append(el('div', { class: 'sub', text: 'Больше трёх дней без копии — включите ПК или проверьте папку.' }));
+}
+
+$('backup-now').addEventListener('click', async () => {
+  try { await api('/api/admin/backup', { method: 'POST' }); } catch (e) { $('backup-status').textContent = 'Ошибка: ' + e.message; return; }
+  setTimeout(refreshBackup, 500);
+});
+
+refreshBackup();
+
+// ------------------------------------------------------------- пользователи
+
+const ROLE_TEXT = { viewer: 'Просмотр', admin: 'Администратор' };
+
+function newPassword() {
+  const abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => abc[b % abc.length]).join('');
+}
+
+async function userAction(id, body, method = 'PATCH') {
+  try {
+    const data = await api('/api/admin/users/' + id, {
+      method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    renderUsers(data.users, users.me);
+    return true;
+  } catch (err) { $('users-note').textContent = 'Ошибка: ' + err.message; return false; }
+}
+
+const users = { me: null };
+
+function renderUsers(list, me) {
+  users.me = me;
+  const box = $('users');
+  box.textContent = '';
+  if (!list.length) {
+    box.appendChild(el('tr', {}, [el('td', { colspan: '5', class: 'sub', text: 'Пока никого: входите только вы, по паролю владельца.' })]));
+    return;
+  }
+  for (const u of list) {
+    const self = u.id === me;
+    const role = el('select', { 'aria-label': 'Роль', disabled: self || !u.active });
+    for (const [k, v] of Object.entries(ROLE_TEXT)) role.appendChild(el('option', { value: k, text: v, selected: u.role === k }));
+    role.addEventListener('change', () => userAction(u.id, { role: role.value }));
+    const pw = el('button', { type: 'button', text: 'Новый пароль' });
+    pw.addEventListener('click', async () => {
+      const value = prompt(`Новый пароль для ${u.login} (от 8 знаков):`, newPassword());
+      if (value === null) return;
+      if (await userAction(u.id, { password: value.trim() })) {
+        $('users-note').textContent = `Пароль ${u.login} изменён: ${value.trim()} — сообщите его человеку.`;
+      }
+    });
+    const toggle = el('button', { type: 'button', text: u.active ? 'Отключить' : 'Включить', disabled: self });
+    toggle.addEventListener('click', () => userAction(u.id, { active: !u.active }));
+    const del = el('button', { type: 'button', class: 'icon-btn', title: 'Удалить', 'aria-label': 'Удалить', disabled: self },
+      [el('span', { class: 'mdi mdi-delete-outline' })]);
+    del.addEventListener('click', () => {
+      if (confirm(`Удалить ${u.name || u.login}? Вход по этому e-mail перестанет работать.`)) userAction(u.id, null, 'DELETE');
+    });
+    box.appendChild(el('tr', { class: u.active ? '' : 'user-off' }, [
+      el('td', { text: (u.name || '—') + (self ? ' (вы)' : '') }),
+      el('td', { text: u.login }),
+      el('td', {}, [role]),
+      el('td', { class: 'sub', text: u.active ? (u.last_login ? fmtDateTime(u.last_login) + (u.last_ip ? ' · ' + u.last_ip : '') : 'не входил') : 'отключён' }),
+      el('td', { class: 'user-acts' }, [pw, toggle, del]),
+    ]));
+  }
+}
+
+async function refreshUsers() {
+  try {
+    const data = await api('/api/admin/users');
+    renderUsers(data.users, data.me);
+    if (data.shared_viewer) $('users-note').textContent = 'Пока работает и общий пароль просмотра; он отключится, как только появится первый пользователь.';
+  } catch (e) { /* не критично */ }
+}
+
+$('nu-gen').addEventListener('click', () => { $('nu-password').value = newPassword(); });
+$('nu-add').addEventListener('click', async () => {
+  const body = { name: $('nu-name').value.trim(), login: $('nu-login').value.trim(),
+                 role: $('nu-role').value, password: $('nu-password').value.trim() };
+  try {
+    const data = await api('/api/admin/users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    renderUsers(data.users, users.me);
+    for (const id of ['nu-name', 'nu-login', 'nu-password']) $(id).value = '';
+    $('users-note').textContent = `Добавлен ${data.user.login}. Сообщите: адрес ${location.origin}, e-mail ${data.user.login}, пароль ${body.password}.`;
+  } catch (err) { $('users-note').textContent = 'Ошибка: ' + err.message; }
+});
+refreshUsers();
+
+// ------------------------------------------------------------- телеграм
+
+async function refreshTelegram() {
+  let data;
+  try { data = await api('/api/admin/telegram'); } catch (e) { return; }
+  const box = $('tg-status');
+  const st = data.settings;
+  box.className = 'status-line ' + (st.ready ? 'clean' : 'pending');
+  box.textContent = !st.enabled ? 'Выключено (в настройках сервера нет бота).'
+    : st.ready ? `Включено: чатов ${st.chats}, ссылка ${st.link}.`
+    : 'Не настроено: ' + st.problems.join('; ') + '.';
+  $('tg-test').disabled = !st.ready;
+  const p = data.pending;
+  $('tg-send').hidden = !(st.ready && p.total);
+  if (p.total) $('tg-note').textContent = `Ждёт отправки: ${p.total} (${p.files.slice(0, 5).join(', ')}${p.total > 5 ? ', …' : ''}).`;
+}
+
+$('tg-test').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/admin/telegram/test', { method: 'POST' });
+    $('tg-note').textContent = `Отправлено в чатов: ${r.sent.length}` + (r.failed.length ? `, ошибки: ${r.failed.map((x) => x.error).join('; ')}` : '') + '.';
+  } catch (err) { $('tg-note').textContent = 'Ошибка: ' + err.message; }
+});
+$('tg-send').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/admin/telegram/send', { method: 'POST' });
+    $('tg-note').textContent = `Отправлено документов: ${r.total || 0}.`;
+  } catch (err) { $('tg-note').textContent = 'Ошибка: ' + err.message; }
+  refreshTelegram();
+});
+refreshTelegram();
+
+refresh();
+setInterval(poll, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn>=0.27
+PyYAML>=6.0
+watchdog>=4.0
+itsdangerous>=2.1
+python-multipart>=0.0.9
+pypdf>=4.0

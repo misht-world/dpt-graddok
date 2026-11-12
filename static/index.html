@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex, nofollow">
+<title>ГРАДДОК</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="page">
+<div class="top">
+  <a class="brand" href="/" title="ГРАДДОК">
+    <img class="mark" src="/static/logo.svg" alt="">
+    <span><h1>ГРА<span class="acc">ДД</span>ОК</h1><span class="tagline">согласования · выпуски · сроки</span></span>
+  </a>
+  <div class="btns">
+    <span class="pubinfo hide-sm" id="pub-info">загрузка…</span>
+    <a class="btn hide-sm" id="export" href="/api/export.csv" title="Выгрузить таблицу в CSV для Excel"><span class="mdi mdi-file-delimited-outline"></span>CSV</a>
+    <a class="btn" id="admin-link" href="/admin" hidden><span class="mdi mdi-cog-outline"></span>Панель</a>
+    <button id="logout"><span class="mdi mdi-logout"></span>Выйти</button>
+  </div>
+</div>
+
+<div class="card main-card">
+  <div class="bar">
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-table" aria-selected="true" aria-controls="view-table"><span class="mdi mdi-email-outline"></span>Письма</button>
+      <button class="tab" role="tab" id="tab-releases" aria-selected="false" aria-controls="view-releases"><span class="mdi mdi-package-variant-closed"></span>Выпуски</button>
+      <button class="tab" role="tab" id="tab-terms" aria-selected="false" aria-controls="view-terms"><span class="mdi mdi-timer-sand"></span>Сроки</button>
+    </nav>
+  </div>
+  <div class="filters">
+    <span class="seg" id="letters-mode" role="group" aria-label="Вид">
+      <button type="button" data-mode="table"><span class="mdi mdi-format-list-bulleted"></span>Список</button>
+      <button type="button" data-mode="matrix"><span class="mdi mdi-view-grid-outline"></span>Матрица</button>
+    </span>
+    <select id="project-filter" aria-label="Проект"></select>
+    <input class="search" type="text" id="search" placeholder="Поиск: документ, орган, проект" autocomplete="off">
+    <select id="group" aria-label="Группа документов" hidden>
+      <option value="">Все документы</option>
+    </select>
+    <button class="chip" type="button" id="only-new" aria-pressed="false">Только новые</button>
+    <button class="chip warn-chip" type="button" id="only-uploaded" aria-pressed="false" hidden title="Загружены вручную, на ПК их ещё нет — скачайте и сохраните в папку проекта на Диске">Только на сервере</button>
+    <span class="colfilter-btns show-sm" id="mobile-filters"></span>
+    <span class="active-filters" id="active-filters"></span>
+    <span class="spacer"></span>
+    <button id="upload-btn" type="button" hidden title="Загрузить файл согласования, например с телефона"><span class="mdi mdi-upload"></span>Загрузить</button>
+    <button class="ghost" id="reset" title="Сбросить все фильтры" hidden><span class="mdi mdi-filter-off-outline"></span>Сбросить фильтры</button>
+    <button class="ghost hide-sm" id="reset-widths" title="Вернуть автоматическую ширину столбцов" aria-label="Вернуть автоматическую ширину столбцов"><span class="mdi mdi-arrow-expand-horizontal"></span></button>
+  </div>
+  <section class="selbar" id="selbar" hidden>
+    <span class="selcount" id="sel-count">Выбрано: 0</span>
+    <button class="primary" id="download-selected"><span class="mdi mdi-download"></span>Скачать</button>
+    <span class="selgroup" id="mark-tools" hidden></span>
+    <span class="spacer"></span>
+    <span class="sub" id="sel-status"></span>
+    <button class="ghost" id="select-visible" title="Выделить все строки в списке">Выделить все</button>
+    <button class="ghost" id="select-none"><span class="mdi mdi-close"></span>Снять выделение</button>
+  </section>
+
+<div class="views">
+  <div class="panel" id="view-table" role="tabpanel">
+    <table id="table">
+      <thead>
+        <tr id="head-row">
+          <th class="plain pick" data-col="pick">
+            <input type="checkbox" id="pick-all" aria-label="Выделить все документы в списке">
+          </th>
+          <th class="plain act" data-col="actions"></th>
+          <th data-sort="file_name" data-col="file" data-filter="file">Документ <span class="arrow">▼</span></th>
+          <th data-sort="org_code" data-col="org" data-filter="org">От кого <span class="arrow">▼</span></th>
+          <th data-sort="mtime" data-col="added" data-filter="month">Дата <span class="arrow">▼</span></th>
+          <th data-sort="decision_label" data-col="decision" data-filter="decision">Решение <span class="arrow">▼</span></th>
+          <th data-sort="project_name" data-col="project" data-filter="project">Проект <span class="arrow">▼</span></th>
+          <th data-sort="stage" data-col="stage" data-filter="stage">Этап <span class="arrow">▼</span></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty-state" id="empty" hidden>
+      <strong>Ничего не найдено</strong>
+      Измените условия отбора или сбросьте фильтры.
+    </div>
+  </div>
+
+  <div class="panel" id="view-matrix" role="tabpanel" hidden>
+    <div id="matrix"></div>
+  </div>
+
+  <div class="panel" id="view-releases" role="tabpanel" hidden>
+    <div class="rel-head">
+      <div class="rel-crumbs" id="rel-crumbs"></div>
+      <span class="spacer"></span>
+      <button class="primary" id="rel-new" hidden><span class="mdi mdi-plus"></span>Зарегистрировать выпуск</button>
+    </div>
+    <div id="releases"></div>
+  </div>
+
+  <div class="panel" id="view-terms" role="tabpanel" hidden>
+    <div class="rel-head">
+      <span class="seg" id="terms-mode" role="group" aria-label="Вид">
+        <button type="button" data-mode="gantt"><span class="mdi mdi-chart-timeline"></span>План-график</button>
+        <button type="button" data-mode="matrix"><span class="mdi mdi-view-grid-outline"></span>Матрица</button>
+      </span>
+      <select id="terms-project" aria-label="Проект"></select>
+      <input class="search" type="text" id="terms-search" placeholder="Группа: часть названия, например «Далта»" autocomplete="off">
+      <span class="spacer"></span>
+      <button class="primary" id="terms-new" hidden><span class="mdi mdi-plus"></span>Добавить отправку</button>
+    </div>
+    <div id="terms"></div>
+  </div>
+</div>
+</div>
+</div>
+
+<script src="/static/app.js"></script>
+<script src="/static/releases.js"></script>
+<script src="/static/terms.js"></script>
+<script src="/static/uploads.js"></script>
+</body>
+</html>

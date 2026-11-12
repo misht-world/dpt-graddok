@@ -1,0 +1,9 @@
+.git
+data
+config.yaml
+docs
+deploy
+scripts
+tests
+spikes
+**/__pycache__

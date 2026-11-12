@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Вход — ГРАДДОК</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" id="form">
+    <div class="login-brand">
+      <img class="mark" src="/static/logo.svg" alt="">
+      <span><h1>ГРА<span class="acc">ДД</span>ОК</h1><span class="tagline">согласования · выпуски · сроки</span></span>
+    </div>
+    <p class="hint">Проекты ДПТ, ППТЛ и АГПТ. Введите e-mail и пароль.</p>
+    <input type="email" id="login" name="login" placeholder="E-mail" autocomplete="username" autocapitalize="off">
+    <input type="password" id="password" name="password" placeholder="Пароль"
+           autocomplete="current-password" required>
+    <button class="primary" type="submit" id="submit"><span class="mdi mdi-login"></span>Войти</button>
+    <div class="error" id="error" role="alert"></div>
+  </form>
+</div>
+<script>
+document.getElementById('login').focus();
+const form = document.getElementById('form');
+const errorBox = document.getElementById('error');
+const submit = document.getElementById('submit');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.textContent = '';
+  submit.disabled = true;
+  try {
+    const body = new FormData();
+    body.append('password', document.getElementById('password').value);
+    body.append('login', document.getElementById('login').value.trim());
+    const res = await fetch('/api/login', { method: 'POST', body });
+    if (res.ok) {
+      location.href = '/';
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    errorBox.textContent = data.detail || 'Не удалось войти';
+  } catch (err) {
+    errorBox.textContent = 'Сервер недоступен';
+  } finally {
+    submit.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
