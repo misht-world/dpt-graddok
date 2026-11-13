@@ -71,9 +71,22 @@ function cellFor(s) {
     s.due ? `Ответ по плану: ${fmtDate(s.due)}` : '',
     s.note ? 'Примечание: ' + s.note : '',
   ].filter(Boolean).join('\n');
+  const sheet = s.answer && (terms.data.remarks || {})[String(s.answer.id)];
+  if (sheet) lines.push(remarksLink(sheet));
   const node = el(canMark() ? 'button' : 'div', { class: cls, type: canMark() ? 'button' : null, title }, lines);
   if (canMark()) node.addEventListener('click', () => editSending(s));
   return node;
+}
+
+// «ответы 3 из 16»: the sheet of answers to the remarks of this answer letter
+function remarksLink(sheet) {
+  // a span, not a link: the matrix cell around it is a button for the admin
+  const a = el('span', { class: 'term-remarks' + (sheet.total && sheet.done === sheet.total ? ' all' : ''), role: 'link', tabindex: '0',
+    text: `ответы ${sheet.done} из ${sheet.total}`, title: 'Лист ответов на замечания' });
+  const open = (e) => { e.stopPropagation(); e.preventDefault(); window.open('/remarks?id=' + sheet.sheet_id, '_blank', 'noopener'); };
+  a.addEventListener('click', open);
+  a.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
+  return a;
 }
 
 function renderTerms() {
@@ -356,6 +369,8 @@ async function editSending(s) {
   const answer = el('select', {}, [el('option', { value: 'auto', text: 'Найти автоматически' }),
     el('option', { value: 'none', text: 'Нет ответа (отвязать)' })]);
   answer.value = s.answer_mode === 'none' ? 'none' : 'auto';
+  const sheetOf = s.answer && (terms.data.remarks || {})[String(s.answer.id)];
+  if (sheetOf) m.body.append(el('p', { class: 'hint' }, ['Ответы на замечания: ', remarksLink(sheetOf)]));
   m.body.append(el('p', { class: 'hint', text: s.answer
     ? `Ответ: ${s.answer.file_name} от ${fmtDate(s.answer.date)}` + (s.answer_auto ? ' — найден автоматически.' : ' — привязан вручную.')
     : 'Ответ не найден.' }));

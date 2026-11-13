@@ -203,7 +203,7 @@ def register_upload_routes(api: FastAPI, state, require_viewer, require_admin) -
         if not up or not is_upload(up) or not target or is_upload(target):
             raise HTTPException(400, "Нечего объединять")
         if getattr(state, "sendings", None):
-            state.sendings.remap_answer(up["id"], target["id"])
+            state.remap_document(up["id"], target["id"])
         state.store.delete_document(up["id"])
         state.purge_blob(up.get("sha256"))
         return {"ok": True}

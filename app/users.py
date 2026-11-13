@@ -14,7 +14,7 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 
-ROLES = ("viewer", "admin")
+ROLES = ("viewer", "editor", "admin")   # editor: «Исполнитель» — writes answers to remarks
 MIN_PASSWORD = 8
 _ITERATIONS = 200_000
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -67,7 +67,7 @@ def check_new(login: str | None = None, password: str | None = None, role: str |
     if password is not None and len(password) < MIN_PASSWORD:
         raise UserError(f"Пароль — не короче {MIN_PASSWORD} знаков")
     if role is not None and role not in ROLES:
-        raise UserError("Роль: просмотр или администратор")
+        raise UserError("Роль: просмотр, исполнитель или администратор")
 
 
 class Users:

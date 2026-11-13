@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Сводная таблица замечаний — ГРАДДОК</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="page rm-page">
+  <div class="top">
+    <a class="brand" href="/" title="ГРАДДОК">
+      <img class="mark" src="/static/logo.svg" alt="">
+      <span><h1>ГРА<span class="acc">ДД</span>ОК</h1><span class="tagline">сводная таблица замечаний</span></span>
+    </a>
+    <div class="btns"><a class="btn" href="/#tab=remarks"><span class="mdi mdi-arrow-left"></span>К замечаниям</a></div>
+  </div>
+  <main class="card rm-card">
+    <div id="sm-head"><p class="sub">Загрузка…</p></div>
+    <div class="rm-tools" id="sm-tools"></div>
+    <div id="sm-table"></div>
+  </main>
+</div>
+<script>
+'use strict';
+const ids = new URLSearchParams(location.search).get('ids') || '';
+const $ = (id) => document.getElementById(id);
+let data = null;
+let mode = 'combined';
+
+function el(tag, attrs = {}, children = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of [].concat(children)) if (c) n.append(typeof c === 'string' ? document.createTextNode(c) : c);
+  return n;
+}
+function fmtDate(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+const label = (l) => [l.org || '—', fmtDate(l.letter_date)].filter(Boolean).join(' ');
+
+function pics(list) {
+  return (list || []).length ? el('div', { class: 'rm-images' }, list.map((i) =>
+    el('a', { href: '/remarks-image/' + i.sha, target: '_blank', rel: 'noopener' }, [el('img', { src: '/remarks-image/' + i.sha, alt: '' })]))) : null;
+}
+const textBlock = (t) => el('div', { class: 'sm-text', text: t || '' });
+
+function render() {
+  const L = data.letters;
+  const sameOrg = new Set(L.map((l) => l.org)).size === 1;
+  $('sm-head').replaceChildren(
+    el('h2', { class: 'rm-title', text: (mode === 'chrono' ? 'Хронология замечаний' : 'Сводная таблица замечаний')
+      + ' · ' + [...new Set(L.map((l) => l.project).filter(Boolean))].join(', ') }),
+    el('p', { class: 'sub' }, ['Письма: ', ...L.flatMap((l, i) => [i ? '; ' : '',
+      el('a', { href: '/remarks?id=' + l.sheet_id, target: '_blank', rel: 'noopener', text: label(l) + (l.letter_no ? ' № ' + l.letter_no : '') })])]),
+    el('p', { class: 'sub', text: `Строк: ${data.rows.length}. Похожие замечания (от 90 %) — одной строкой; ответы пишутся в листах писем, здесь только просмотр.`
+      + (sameOrg && mode !== 'chrono' ? ' Письма одного комитета — удобнее «Хронология».' : '') }));
+
+  const seg = el('span', { class: 'seg' }, [['combined', 'Сводная'], ['chrono', 'Хронология']].map(([k, t]) => {
+    const b = el('button', { type: 'button', 'aria-pressed': mode === k ? 'true' : 'false', text: t });
+    b.addEventListener('click', () => { mode = k; render(); });
+    return b;
+  }));
+  const word = (notes, text, primary) => el('a', { class: 'btn' + (primary ? ' primary' : ''),
+    href: `/remarks-summary/word?ids=${encodeURIComponent(ids)}&mode=${mode}&notes=${notes ? 1 : 0}` },
+    [el('span', { class: 'mdi mdi-file-word-outline' }), text]);
+  $('sm-tools').replaceChildren(seg, ...(mode === 'chrono' ? [word(true, 'Word', true)]
+    : [word(true, 'Word с примечаниями', true), word(false, 'Word без примечаний')]));
+
+  const head = mode === 'chrono'
+    ? ['№', 'Замечание', ...L.map(label)]
+    : ['№', 'Замечание', 'Кто', 'Ответ', 'Примечание'];
+  const tbody = el('tbody');
+  data.rows.forEach((r, i) => {
+    const cells = [el('td', { class: 'num', text: String(i + 1) }), el('td', {}, [textBlock(r.remark)])];
+    if (mode === 'chrono') {
+      for (const c of r.cells) {
+        if (!c) { cells.push(el('td', { class: 'sm-empty' })); continue; }
+        if (c.state === 'dropped') { cells.push(el('td', { class: 'sm-dropped', text: 'снято' })); continue; }
+        cells.push(el('td', { class: 'sm-' + c.state + ' st-' + c.status }, [
+          el('div', { class: 'sm-tag', text: (c.state === 'repeat' ? 'повторно · ' : 'новое · ') + data.statuses[c.status] }),
+          textBlock(c.answer), pics(c.answer_images)]));
+      }
+    } else {
+      cells.push(el('td', { class: 'sm-who' }, r.who.map((w) => el('div', { text: w }))),
+        el('td', {}, [textBlock(r.answer), pics(r.answer_images)]),
+        el('td', {}, [textBlock(r.note), pics(r.note_images)]));
+    }
+    tbody.append(el('tr', { class: r.done ? 'sm-done' : '' }, cells));
+  });
+  $('sm-table').replaceChildren(el('div', { class: 'sm-scroll' }, [el('table', { class: 'sm-table' + (mode === 'chrono' ? ' chrono' : '') }, [
+    el('thead', {}, [el('tr', {}, head.map((h) => el('th', { class: 'plain', text: h })))]), tbody])]));
+}
+
+(async () => {
+  const res = await fetch('/api/remarks-summary?ids=' + encodeURIComponent(ids));
+  if (res.status === 401) { location.href = '/login'; return; }
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) { $('sm-head').textContent = 'Не собралась таблица: ' + (d.detail || res.status); return; }
+  data = d;
+  // one committee in different letters: the chronology is what is wanted
+  if (new Set(d.letters.map((l) => l.org)).size === 1 && d.letters.length > 1) mode = 'chrono';
+  render();
+})();
+</script>
+</body>
+</html>

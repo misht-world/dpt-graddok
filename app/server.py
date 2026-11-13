@@ -36,6 +36,7 @@ from .notify import TelegramError, TelegramNotifier
 from .watcher import ChangeWatcher
 from .releases_api import register_release_routes
 from .shares import register_share_routes
+from .remarks import register_remark_routes
 from .uploads import decorate as decorate_uploads, is_upload, pc_path, register_upload_routes
 
 log = logging.getLogger("server")
@@ -143,8 +144,14 @@ class App:
         return any(len(self._attempts[k]) >= self.config.max_login_attempts for k in keys)
 
     def record_failure(self, *keys: str) -> None:
+        now = time.time()
         for key in keys:
-            self._attempts[key].append(time.time())
+            self._attempts[key].append(now)
+        # audit 13.11: many different logins must not grow the table without end
+        if len(self._attempts) > 5000:
+            window = now - 900
+            for key in [k for k, v in self._attempts.items() if not v or v[-1] < window]:
+                del self._attempts[key]
 
     def check_password(self, password: str) -> str | None:
         import secrets as _s
@@ -270,13 +277,26 @@ class App:
 
     def purge_blob(self, sha: str | None) -> bool:
         """Deletes a copy that nothing (catalog or release) needs any more."""
-        if not sha or self.store.uses_blob(sha) or (self.releases and self.releases.uses_blob(sha)):
+        if not sha or self.store.uses_blob(sha) or (self.releases and self.releases.uses_blob(sha))                 or (getattr(self, "remarks", None) and self.remarks.uses_blob(sha)):
             return False
         if self.blobs.fresh(sha):
             return False   # just written: a registration or scan may not have recorded it yet
         return self.blobs.delete(sha)
 
     # --------------------------------------------------------------- publish
+
+    def remap_document(self, old_id: int, new_id: int) -> None:
+        """A document got a new id: answers in «Сроки», sheets of remarks and share links follow it.
+
+        Audit 13.11: before, only the answers followed — a sheet of answers and a share link of a
+        letter renamed on the PC lost it.
+        """
+        if getattr(self, "sendings", None):
+            self.sendings.remap_answer(old_id, new_id)
+        if getattr(self, "remarks", None):
+            self.remarks.remap_doc(old_id, new_id)
+        if getattr(self, "shares", None):
+            self.shares.remap_doc(old_id, new_id)
 
     def notify_telegram(self, pub_id: int) -> None:
         """Telegram message about new / changed / removed letters, in the background.
@@ -370,8 +390,7 @@ class App:
             fp = fingerprint(self.config, sources)
             stats = self.store.publish(docs, fp, note)
             for old_id, new_id in stats.pop("moved_ids", []):
-                if getattr(self, "sendings", None):
-                    self.sendings.remap_answer(old_id, new_id)
+                self.remap_document(old_id, new_id)
             self.store.set_meta("published_fingerprint", fp)
             self.watcher.mark_published(fp)
             log.info("публикация #%s: %s", stats["publication_id"], stats)
@@ -389,6 +408,19 @@ def same_time(a: str | None, b: str | None) -> bool:
         return datetime.fromisoformat(a) == datetime.fromisoformat(b)
     except (TypeError, ValueError):
         return False
+
+
+class RevalidatedStatic(StaticFiles):
+    """Scripts and styles are checked with the server on every load (a cheap 304 when unchanged).
+
+    Without it the browser keeps an old app.js for a while after an update and the page
+    calls functions that are not there yet.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def client_ip(request: Request) -> str:
@@ -447,6 +479,15 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     api = FastAPI(title="ГРАДДОК", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
+    @api.middleware("http")
+    async def protective_headers(request: Request, call_next):
+        """Audit 13.11: no framing of the pages (clickjacking), no type guessing, no full address in Referer."""
+        response = await call_next(request)
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        return response
+
     # ------------------------------------------------------------ зависимости
 
     def current_role(session: str | None = Cookie(default=None, alias=COOKIE_NAME)) -> str | None:
@@ -460,6 +501,12 @@ def create_app(config: Config | None = None) -> FastAPI:
     def require_admin(role: str | None = Depends(current_role)) -> str:
         if role != "admin":
             raise HTTPException(403, "Требуются права администратора")
+        return role
+
+    def require_editor(role: str | None = Depends(current_role)) -> str:
+        """Admin or «Исполнитель»: answers to remarks."""
+        if role not in ("admin", "editor"):
+            raise HTTPException(403, "Нужна роль «Исполнитель» или администратора")
         return role
 
     def current_who(session: str | None = Cookie(default=None, alias=COOKIE_NAME)) -> dict | None:
@@ -485,7 +532,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     @api.patch("/api/admin/users/{user_id}")
     def admin_edit_user(user_id: int, role: str = Depends(require_admin),
                         me: dict | None = Depends(current_who), payload: dict = Body(...)):
-        if me and me["uid"] == user_id and (payload.get("active") is False or payload.get("role") == "viewer"):
+        if me and me["uid"] == user_id and (payload.get("active") is False or payload.get("role") in ("viewer", "editor")):
             raise HTTPException(400, "Нельзя отключить себя или снять с себя права администратора")
         allowed = {k: payload[k] for k in ("name", "role", "active", "password") if k in payload}
         try:
@@ -529,7 +576,9 @@ def create_app(config: Config | None = None) -> FastAPI:
             state.users.touch(user["id"], ip)
             log.info("вход: %s (%s) с %s", user["login"], user["role"], ip)
         response = JSONResponse({"ok": True, "role": role})
-        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        # behind tsdproxy (https only) the request reaches us as http with X-Forwarded-For
+        secure = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+                  or bool(request.headers.get("x-forwarded-for")))
         response.set_cookie(
             COOKIE_NAME, state.issue(role, user), max_age=state.max_age,
             httponly=True, samesite="lax", secure=secure, path="/",
@@ -549,6 +598,18 @@ def create_app(config: Config | None = None) -> FastAPI:
         if role is None:
             return RedirectResponse("/login", status_code=303)
         return FileResponse(STATIC_DIR / "index.html", headers=PAGE_HEADERS)
+
+    @api.get("/remarks-summary", response_class=HTMLResponse)
+    def remarks_summary_page(role: str | None = Depends(current_role)):
+        if role is None:
+            return RedirectResponse("/login", status_code=303)
+        return FileResponse(STATIC_DIR / "remarks-summary.html", headers=PAGE_HEADERS)
+
+    @api.get("/remarks", response_class=HTMLResponse)
+    def remarks_page(role: str | None = Depends(current_role)):
+        if role is None:
+            return RedirectResponse("/login", status_code=303)
+        return FileResponse(STATIC_DIR / "remarks.html", headers=PAGE_HEADERS)
 
     @api.get("/admin", response_class=HTMLResponse)
     def admin_page(role: str | None = Depends(current_role)):
@@ -609,8 +670,10 @@ def create_app(config: Config | None = None) -> FastAPI:
         latest_id = pub["id"] if pub else None
         rows = state.store.documents()
         decorate_uploads(rows)
+        sheets = state.remarks.summary() if getattr(state, "remarks", None) else {}
         for row in rows:
             mark_document(row, latest_id)
+            row["remarks"] = sheets.get(row["id"])
             for hidden in ("sha256", "abs_path", "rel_path", "source_id"):
                 row.pop(hidden, None)
         return {
@@ -1247,6 +1310,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     register_release_routes(api, state, require_viewer, require_admin, browse_roots)
     register_upload_routes(api, state, require_viewer, require_admin)
     register_share_routes(api, state, require_admin, COOKIE_NAME, STATIC_DIR, PAGE_HEADERS)
+    register_remark_routes(api, state, require_viewer, require_editor, require_admin)
 
-    api.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    api.mount("/static", RevalidatedStatic(directory=STATIC_DIR), name="static")
     return api

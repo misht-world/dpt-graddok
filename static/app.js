@@ -588,9 +588,7 @@ function renderTable(docs) {
       newMark(d, seen),
     ], { nowrap: true }));
 
-    tr.appendChild(cell('Решение', [
-      el('span', { class: 'badge ' + d.decision_kind, text: d.decision_label }),
-    ]));
+    tr.appendChild(cell('Решение', [decisionBadge(d)]));
 
     tr.appendChild(cell('Проект', [
       el('div', { class: 'proj' }, [
@@ -627,6 +625,43 @@ function showEmptyState(visibleCount) {
 }
 
 const ORDER_WARN_DAYS = 60;
+
+// «Замечания» / «Отказ»: the sheet of answers — progress, or «Разобрать» for those who answer
+function canAnswer() {
+  return state.meta && (state.meta.role === 'admin' || state.meta.role === 'editor');
+}
+
+// The decision badge. «Замечания» / «Отказ» is a button: it opens the sheet of answers,
+// or (for those who answer) cuts the letter into items first. A small icon marks it.
+function decisionBadge(d) {
+  const plain = el('span', { class: 'badge ' + d.decision_kind, text: d.decision_label });
+  const remarkable = ['negative', 'neutral'].includes(d.decision_kind);
+  if (!d.remarks && !(remarkable && canAnswer())) return plain;
+  const b = el('button', { type: 'button', class: 'badge badge-btn ' + d.decision_kind,
+    title: d.remarks ? 'Открыть лист ответов на замечания' : 'Разобрать письмо на пункты и писать ответы' },
+    [d.decision_label, el('span', { class: 'mdi ' + (d.remarks ? 'mdi-format-list-checks' : 'mdi-format-list-numbered') })]);
+  b.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (d.remarks) { window.open('/remarks?id=' + d.remarks.sheet_id, '_blank', 'noopener'); return; }
+    // open the tab at once (a pop-up opened after a wait would be blocked), then point it to the sheet
+    const tab = window.open('about:blank', '_blank');
+    b.disabled = true;
+    try {
+      const res = await fetch('/api/remarks', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: d.id }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'ошибка');
+      d.remarks = { sheet_id: data.id, total: data.count || 0, done: 0 };
+      if (tab) tab.location = '/remarks?id=' + data.id; else location.href = '/remarks?id=' + data.id;
+      b.replaceWith(decisionBadge(d));
+    } catch (err) {
+      if (tab) tab.close();
+      alert('Не получилось разобрать: ' + err.message);
+      b.disabled = false;
+    }
+  });
+  return b;
+}
 
 function canMark() {
   return state.meta && state.meta.role === 'admin';
@@ -1116,8 +1151,9 @@ function bind() {
   }
 
   // «Письма» is one tab with two views: the list (table) and the matrix.
-  const tabs = { table: $('tab-table'), releases: $('tab-releases'), terms: $('tab-terms') };
-  const views = { table: $('view-table'), matrix: $('view-matrix'), releases: $('view-releases'), terms: $('view-terms') };
+  const tabs = { table: $('tab-table'), releases: $('tab-releases'), terms: $('tab-terms'), remarks: $('tab-remarks') };
+  const views = { table: $('view-table'), matrix: $('view-matrix'), releases: $('view-releases'), terms: $('view-terms'),
+                  remarks: $('view-remarks') };
   state.lettersMode = readStore('graddok.lettersMode') === 'matrix' ? 'matrix' : 'table';
   const show = (view) => {
     state.view = view;
@@ -1128,7 +1164,8 @@ function bind() {
       b.setAttribute('aria-pressed', b.dataset.mode === view ? 'true' : 'false');
     }
     // the catalog filters belong to the letters, not to releases or terms
-    document.querySelector('.filters').hidden = view === 'releases' || view === 'terms';
+    document.querySelector('.filters').hidden = view === 'releases' || view === 'terms' || view === 'remarks';
+    if (view === 'remarks') { $('selbar').hidden = true; closeColumnFilter(); window.showRemarks(); return; }
     if (view === 'releases') { $('selbar').hidden = true; closeColumnFilter(); window.showReleases(); return; }
     if (view === 'terms') { $('selbar').hidden = true; closeColumnFilter(); window.showTerms(); return; }
     render();
@@ -1165,6 +1202,13 @@ setupResizers();
 async function followLink() {
   const h = new URLSearchParams(location.hash.slice(1));
   const doc = Number(h.get('doc')), release = Number(h.get('release')), file = Number(h.get('file'));
+  // «/#tab=remarks»: back from a sheet of answers to the list of remarks
+  const tab = h.get('tab');
+  if (tab && ['releases', 'terms', 'remarks'].includes(tab)) {
+    history.replaceState(null, '', location.pathname);
+    state.showView(tab);
+    return true;
+  }
   if (!doc && !release) return false;
   history.replaceState(null, '', location.pathname);
   if (release) {
@@ -1193,6 +1237,9 @@ async function followLink() {
   state.showView('table');
   return true;
 }
+
+// a link to the same page changes only the part after «#»
+window.addEventListener('hashchange', () => { if (state.docs) followLink(); });
 
 load()
   .then(async () => { if (!(await followLink())) state.showView(state.lettersMode); })

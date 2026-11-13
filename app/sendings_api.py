@@ -90,6 +90,8 @@ def register_sending_routes(api: FastAPI, state, releases, require_viewer, requi
     def sendings(role: str = Depends(require_viewer)):
         return {
             "sendings": computed(),
+            # sheets of answers to remarks by letter id: «ответы 3 из 16» next to the answer
+            "remarks": {str(k): v for k, v in (state.remarks.summary() if getattr(state, "remarks", None) else {}).items()},
             "statuses": STATUSES,
             "default_days": DEFAULT_DAYS,
             "today": date.today().isoformat(),
@@ -144,5 +146,6 @@ def register_sending_routes(api: FastAPI, state, releases, require_viewer, requi
         return {"candidates": sorted(out, key=lambda d: d["date"] or "", reverse=True)}
 
     state.sendings = store
+    state.sendings_computed = computed   # remarks (app/remarks.py): which round a letter answers
     state.make_sendings = make_for_release
     return store

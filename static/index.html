@@ -34,6 +34,7 @@
       <button class="tab" role="tab" id="tab-table" aria-selected="true" aria-controls="view-table"><span class="mdi mdi-email-outline"></span>Письма</button>
       <button class="tab" role="tab" id="tab-releases" aria-selected="false" aria-controls="view-releases"><span class="mdi mdi-package-variant-closed"></span>Выпуски</button>
       <button class="tab" role="tab" id="tab-terms" aria-selected="false" aria-controls="view-terms"><span class="mdi mdi-timer-sand"></span>Сроки</button>
+      <button class="tab" role="tab" id="tab-remarks" aria-selected="false" aria-controls="view-remarks"><span class="mdi mdi-format-list-numbered"></span>Замечания</button>
     </nav>
   </div>
   <div class="filters">
@@ -116,6 +117,13 @@
     </div>
     <div id="terms"></div>
   </div>
+
+  <div class="panel" id="view-remarks" role="tabpanel" hidden>
+    <div class="rel-head">
+      <span class="sub">Листы ответов по проектам. Имя письма открывает письмо, строка — лист ответов. Новый лист — метка «Замечания» или «Отказ» у письма в «Письмах».</span>
+    </div>
+    <div id="remarks"></div>
+  </div>
 </div>
 </div>
 </div>
@@ -124,5 +132,6 @@
 <script src="/static/releases.js"></script>
 <script src="/static/terms.js"></script>
 <script src="/static/uploads.js"></script>
+<script src="/static/remarks-list.js"></script>
 </body>
 </html>

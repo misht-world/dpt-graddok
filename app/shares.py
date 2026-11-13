@@ -72,6 +72,12 @@ class Shares:
             self._conn.commit()
         return self.get(token)
 
+    def remap_doc(self, old_id: int, new_id: int) -> None:
+        """A shared letter got a new id in the catalog (renamed on the PC): the link keeps working."""
+        with self._lock:
+            self._conn.execute("UPDATE shares SET target_id=? WHERE kind='doc' AND target_id=?", (new_id, old_id))
+            self._conn.commit()
+
     def revoke(self, token: str) -> None:
         with self._lock:
             self._conn.execute("UPDATE shares SET revoked=1 WHERE token=?", (token,))

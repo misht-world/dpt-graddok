@@ -92,7 +92,8 @@
       <h2>Пользователи</h2>
       <p class="hint">
         У каждого свой вход: e-mail и пароль. Пароль задаёте вы и сообщаете человеку сами — писем программа
-        не шлёт. «Просмотр» — всё видно и можно скачивать, менять нельзя; «Администратор» — как вы.
+        не шлёт. «Просмотр» — всё видно и можно скачивать, менять нельзя; «Исполнитель» — как просмотр, плюс разбирает
+        замечания и пишет ответы; «Администратор» — как вы.
         Отключённый человек сразу теряет доступ, смена пароля завершает его открытые сеансы.
         Ваш пароль владельца работает как прежде (e-mail оставьте пустым).
       </p>
@@ -108,7 +109,7 @@
       <div class="po-form">
         <input id="nu-name" type="text" placeholder="Имя: Иван Петров" autocomplete="off">
         <input id="nu-login" type="email" placeholder="E-mail" autocomplete="off" autocapitalize="off">
-        <select id="nu-role" aria-label="Роль"><option value="viewer">Просмотр</option><option value="admin">Администратор</option></select>
+        <select id="nu-role" aria-label="Роль"><option value="viewer">Просмотр</option><option value="editor">Исполнитель</option><option value="admin">Администратор</option></select>
         <input id="nu-password" type="text" placeholder="Пароль (от 8 знаков)" autocomplete="off" spellcheck="false">
         <button id="nu-gen" type="button" title="Придумать пароль"><span class="mdi mdi-dice-multiple-outline"></span>Придумать</button>
         <button class="primary" id="nu-add">Добавить</button>
@@ -793,7 +794,7 @@ refreshBackup();
 
 // ------------------------------------------------------------- пользователи
 
-const ROLE_TEXT = { viewer: 'Просмотр', admin: 'Администратор' };
+const ROLE_TEXT = { viewer: 'Просмотр', editor: 'Исполнитель', admin: 'Администратор' };
 
 function newPassword() {
   const abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
